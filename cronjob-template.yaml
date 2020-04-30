@@ -8,7 +8,7 @@ parameters:
   - name: APP_NAME
     description: "App name"
     value: webanno
-  - name DC_NAME
+  - name DC_NAME:
     description: "Deployment config name to which the job seeks affinity"
     value: webanno
   - name: DATA_VOLUME
@@ -71,6 +71,7 @@ objects:
                       value: ${BACKUP_DESTINATION}
                   image: "docker.io/hsci/duplicity-openshift:latest"
                   imagePullPolicy: Always
+                  name: duplicity-openshift
                   volumeMounts:
                     - mountPath: /data/
                       name: data
