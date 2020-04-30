@@ -1,0 +1,82 @@
+apiVersion: v1
+kind: Template
+metadata:
+  name: duplicity-backup-cronjob
+  annotations:
+    description: "duplicity backup cronjob"
+parameters:
+  - name: APP_NAME
+    description: "App name"
+    value: webanno
+  - name DC_NAME
+    description: "Deployment config name to which the job seeks affinity"
+    value: webanno
+  - name: DATA_VOLUME
+    description: "Data volume to backup"
+    value: webanno-files
+  - name: BACKUP_DESTINATION
+    description: "s3 destination for the backup"
+    value: s3://a3s.fi/webanno-backup
+  - name: PASSPHRASE
+    description: "passphrase for backup encryption"
+    value: ""
+  - name: AWS_ACCESS_KEY_ID
+    description: "s3 access key"
+    value: ""
+  - name: AWS_SECRET_ACCESS_KEY
+    description: "s3 access key secret"
+    value: ""
+  - name: SCHEDULE
+    description: 'Cron schedule. Format "minute hour day month weekday"'
+    value: "10 5 * * *"
+objects:
+  - apiVersion: batch/v1beta1
+    kind: CronJob
+    metadata:
+      labels:
+        app: ${APP_NAME}
+        backup: ${DC_NAME}
+      name: ${DC_NAME}-duplicity-backup-cronjob
+    spec:
+      concurrencyPolicy: Forbid
+      schedule: ${SCHEDULE}
+      jobTemplate:
+        spec:
+          template:
+            metadata:
+              labels:
+                app: ${APP_NAME}
+                backup: ${DC_NAME}
+                parent: ${DC_NAME}-duplicity-backup
+            spec:
+              affinity:
+                podAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - labelSelector:
+                        matchExpressions:
+                          - key: deploymentconfig
+                            operator: In
+                            values:
+                              - ${DC_NAME}
+                      topologyKey: kubernetes.io/hostname
+              containers:
+                - env:
+                    - name: PASSPHRASE
+                      value: ${PASSPHRASE}
+                    - name: AWS_ACCESS_KEY_ID
+                      value: ${AWS_ACCESS_KEY_ID}
+                    - name: AWS_SECRET_ACCESS_KEY
+                      value: ${AWS_SECRET_ACCESS_KEY}
+                    - name: BACKUP_DESTINATION
+                      value: ${BACKUP_DESTINATION}
+                  image: "docker.io/hsci/duplicity-openshift:latest"
+                  imagePullPolicy: Always
+                  volumeMounts:
+                    - mountPath: /data/
+                      name: data
+                      readOnly: true
+              restartPolicy: OnFailure
+              volumes:
+                - name: data
+                  persistentVolumeClaim:
+                    claimName: ${DATA_VOLUME}
